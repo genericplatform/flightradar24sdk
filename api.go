@@ -15,14 +15,28 @@ type API struct {
 	client *resty.Client
 }
 
-func NewAPI(baseClient *http.Client) *API {
-	if baseClient == nil {
-		baseClient = http.DefaultClient
+func NewAPI(opts ...Option) *API {
+	var options apiOptions
+	for _, o := range opts {
+		o(&options)
+	}
+
+	baseClient := http.DefaultClient
+	if options.client != nil {
+		baseClient = options.client
 	}
 
 	r := resty.NewWithClient(baseClient)
-	api := &API{client: r}
-	return api
+	r.SetDebug(options.debugEnabled)
+	if options.logger != nil {
+		r.SetLogger(options.logger)
+	}
+
+	return &API{client: r}
+}
+
+func (a *API) Client() *resty.Client {
+	return a.client
 }
 
 type GetFlightsResponse struct {
@@ -48,30 +62,30 @@ func (a *API) GetFlights(ctx context.Context, airline string, radarOpts *RadarOp
 	resp, err := a.client.R().SetContext(ctx).
 		SetQueryParamsFromValues(v).
 		SetQueryParam("airline", airline).
-		SetHeaders(baseHeaders).
+		SetHeaders(defaultHeaders).
 		SetHeader("Accept", "application/json").
 		Get(realtimeFlightTrackerDataURL)
 	if err != nil {
 		return GetFlightsResponse{}, err
 	}
 
-	apiResp := make(map[string]any)
-	if err := json.Unmarshal(resp.Body(), &apiResp); err != nil {
+	jsonData := make(map[string]any)
+	if err := json.Unmarshal(resp.Body(), &jsonData); err != nil {
 		return GetFlightsResponse{}, err
 	}
 
-	var decodedResp struct {
+	var apiResp struct {
 		Stats       FlightStats            `mapstructure:"stats,omitempty"`
 		FullCount   float64                `mapstructure:"full_count,omitempty"`
 		Version     float64                `mapstructure:"version,omitempty"`
 		FlightsData map[string]interface{} `mapstructure:",remain"`
 	}
-	if err := mapstructure.Decode(apiResp, &decodedResp); err != nil {
+	if err := mapstructure.Decode(jsonData, &apiResp); err != nil {
 		return GetFlightsResponse{}, err
 	}
 
-	flights := make([]Flight, 0, len(decodedResp.FlightsData))
-	for k, v := range decodedResp.FlightsData {
+	flights := make([]Flight, 0, len(apiResp.FlightsData))
+	for k, v := range apiResp.FlightsData {
 		data, ok := v.([]interface{})
 		if !ok {
 			return GetFlightsResponse{}, errors.New("aircraft flights data cast error")
@@ -102,8 +116,8 @@ func (a *API) GetFlights(ctx context.Context, airline string, radarOpts *RadarOp
 
 	return GetFlightsResponse{
 		Flights:   flights,
-		Stats:     decodedResp.Stats,
-		FullCount: decodedResp.FullCount,
-		Version:   decodedResp.Version,
+		Stats:     apiResp.Stats,
+		FullCount: apiResp.FullCount,
+		Version:   apiResp.Version,
 	}, nil
 }

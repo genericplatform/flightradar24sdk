@@ -7,12 +7,12 @@ import (
 )
 
 func main() {
-	api := flightradar24sdk.NewAPI(nil)
+	api := flightradar24sdk.NewAPI(flightradar24sdk.WithDebug(true))
 
 	resp, err := api.GetFlights(context.Background(), "DAL", nil)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(resp)
+	fmt.Printf("%d flights data received", len(resp.Flights))
 }

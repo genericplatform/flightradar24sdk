@@ -1,6 +1,6 @@
 package flightradar24sdk
 
-var baseHeaders = map[string]string{
+var defaultHeaders = map[string]string{
 	"accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
 	"cache-control":   "max-age=0",
 	"origin":          "https://www.flightradar24.com",
